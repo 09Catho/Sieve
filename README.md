@@ -20,6 +20,8 @@ This installs the pre-compiled binary for your OS (Windows, Linux, macOS).
 npm install -g sieve-secrets
 ```
 
+> Note: The npm package runs a small **postinstall** step that only downloads the prebuilt Rust binary from the GitHub release. If you are in a locked-down environment, set `SIEVE_SKIP_POSTINSTALL=1` to skip it and build from source instead.
+
 Run immediately without installing:
 ```bash
 npx sieve-secrets check --full

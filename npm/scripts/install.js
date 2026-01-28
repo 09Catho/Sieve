@@ -4,6 +4,13 @@ const os = require('os');
 const axios = require('axios');
 const tar = require('tar');
 
+// Optional opt-out for locked-down environments.
+if (process.env.SIEVE_SKIP_POSTINSTALL) {
+    console.log('Sieve postinstall skipped because SIEVE_SKIP_POSTINSTALL is set.');
+    console.log('You can build from source instead: cargo install --path .');
+    process.exit(0);
+}
+
 // Map node platform/arch to Rust target
 const PLATFORMS = {
     'win32-x64': 'x86_64-pc-windows-msvc',

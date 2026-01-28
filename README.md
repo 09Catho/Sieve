@@ -51,12 +51,14 @@ sieve check --full --repair
 ```
 
 ### 4. Interactive Mode (TUI)
-Just running the check command launches the interactive TUI if issues are found.
-- **Navigation:** Arrow keys
+Running `sieve check` automatically launches the interactive TUI **if secrets are found**. If no secrets are detected, the tool exits silently (success).
+
+**TUI Controls:**
+- **Navigation:** `Up`/`Down` Arrow keys
 - **Actions:**
-  - `r`: **Repair** (Fix the selected finding)
-  - `g`: **Ignore** (Add to baseline)
-  - `c`: **Copy** details
+  - `r`: **Repair** (Auto-fix the selected finding with placeholders)
+  - `g`: **Ignore** (Add to baseline/allowlist)
+  - `c`: **Copy** finding details to clipboard
   - `s`: **Switch** mode (Strict/Normal)
   - `q`: **Quit**
 

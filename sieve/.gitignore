@@ -1,0 +1,7 @@
+target/
+.sieve_cache.json
+.git/
+node_modules/
+.env*
+*.pem
+*.key

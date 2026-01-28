@@ -1,0 +1,28 @@
+{
+  "name": "sieve-secrets",
+  "version": "0.1.0",
+  "description": "Secret Leak Tripwire - Prevent secrets from entering git",
+  "bin": {
+    "sieve": "bin/sieve.js"
+  },
+  "scripts": {
+    "postinstall": "node scripts/install.js"
+  },
+  "keywords": [
+    "security",
+    "secrets",
+    "git",
+    "hook",
+    "scanner"
+  ],
+  "author": "Sieve",
+  "license": "MIT",
+  "dependencies": {
+    "axios": "^1.6.0",
+    "tar": "^6.2.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/09Catho/Sieve"
+  }
+}

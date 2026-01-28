@@ -5,46 +5,66 @@ A TUI-first secret leak tripwire for developers. Blocks new secrets before they 
 ## Features
 - **TUI-First Experience:** Interactive terminal UI to review, ignore, or fix leaks.
 - **Git Integration:** Scans `git diff --cached` (staged files) for speed.
+- **Deep Scan:** Recursive directory scanning with `.gitignore` support.
+- **Auto-Repair:** Automatically fix secrets by replacing them with placeholders.
 - **Heuristics:** Uses entropy, keywords, and format detection to score findings.
 - **Baseline:** Supports a `.sieve.baseline.json` to ignore legacy secrets.
 - **Safe:** Redacts secrets in all outputs (UI and JSON).
 
 ## Installation
 
+### Via NPM (Recommended)
+This installs the pre-compiled binary for your OS (Windows, Linux, macOS).
+
+```bash
+npm install -g sieve-secrets
+```
+
+Run immediately without installing:
+```bash
+npx sieve-secrets check --full
+```
+
 ### Via Cargo (Rust)
 ```bash
 cargo install --path .
 ```
 
-### Via NPM (Wrapper)
-```bash
-# Runs the binary (requires release assets in real scenario)
-npx sieve-cli scan --staged
-```
-
 ## Usage
 
-### 1. Scan Staged Changes (Pre-commit)
+### 1. Quick Check (Pre-commit)
+Scans only staged files (`git diff --cached`). Ideal for git hooks.
 ```bash
-sieve scan --staged
-```
-Launches the TUI if secrets are found.
-
-### 2. Scan Directory
-```bash
-sieve scan --path ./src
+sieve check
 ```
 
-### 3. CI Mode (JSON Output)
+### 2. Full Project Scan
+Recursively scans the current directory, respecting `.gitignore`.
 ```bash
-sieve scan --staged --no-tui --format json
+sieve check --full
 ```
 
-### 4. Baselines
-If you have existing secrets you can't fix yet:
-1. Run scan.
-2. Press `g` in the TUI on a finding to add it to the baseline.
-3. Or verify strictness: `sieve baseline --check`
+### 3. Automatic Repair
+Automatically replaces all found secrets with `REDACTED_SECRET`.
+```bash
+sieve check --full --repair
+```
+
+### 4. Interactive Mode (TUI)
+Just running the check command launches the interactive TUI if issues are found.
+- **Navigation:** Arrow keys
+- **Actions:**
+  - `r`: **Repair** (Fix the selected finding)
+  - `g`: **Ignore** (Add to baseline)
+  - `c`: **Copy** details
+  - `s`: **Switch** mode (Strict/Normal)
+  - `q`: **Quit**
+
+### 5. CI Mode (JSON Output)
+For build pipelines, disable the TUI and output JSON.
+```bash
+sieve check --full --no-tui --format json
+```
 
 ## Pre-commit Hook
 
@@ -54,7 +74,7 @@ Add this to `.git/hooks/pre-commit`:
 #!/bin/sh
 # Redirect input to TTY to allow TUI interaction
 exec < /dev/tty
-sieve scan --staged
+sieve check
 ```
 
 Make it executable:
@@ -70,7 +90,7 @@ Default ignores: `node_modules`, `target`, `dist`, `.git`, `vendor`.
 ## Development
 
 ```bash
-cargo run -- scan --staged
+cargo run -- check --full
 ```
 
 ## Release
@@ -83,4 +103,3 @@ This project uses GitHub Actions for automated releases.
    - Package them into `tar.gz` archives.
    - Create a GitHub Release and upload the assets.
    - The npm package's `install.js` script downloads the appropriate binary from these release assets.
-

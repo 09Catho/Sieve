@@ -17,7 +17,8 @@ use ignore::WalkBuilder;
 use ratatui::{backend::CrosstermBackend, Terminal};
 use scanner::{Finding, Severity};
 use std::fs::File;
-use std::io::{self, Write};
+use std::io;
+use ui::FilterMode;
 // use std::path::Path;
 
 fn main() -> Result<()> {
@@ -362,11 +363,51 @@ fn run_app<B: ratatui::backend::Backend>(
             }
 
             match key.code {
-                KeyCode::Char('q') | KeyCode::Esc => return Ok(()),
+                KeyCode::Char('q') | KeyCode::Esc => {
+                    if app.show_context {
+                        app.show_context = false;
+                    } else {
+                        return Ok(());
+                    }
+                }
+                KeyCode::Enter => {
+                    if app.show_context {
+                        app.show_context = false;
+                    } else if let Some(sel) = app.state.selected() {
+                        if let Some(f) = app.findings.get(sel) {
+                            match ui::get_file_context(&f.file_path, f.line_number) {
+                                Ok(lines) => {
+                                    app.context_lines = Some(lines);
+                                    app.show_context = true;
+                                }
+                                Err(e) => {
+                                    app.clipboard_status =
+                                        Some(format!("Error reading context: {}", e));
+                                }
+                            }
+                        }
+                    }
+                }
                 KeyCode::Down => app.next(),
                 KeyCode::Up => app.previous(),
                 KeyCode::Char('s') => app.strict_mode = !app.strict_mode,
                 KeyCode::Char('?') => app.show_help = !app.show_help,
+                KeyCode::Char('1') => {
+                    app.filter_mode = FilterMode::All;
+                    app.update_visible_findings();
+                }
+                KeyCode::Char('2') => {
+                    app.filter_mode = FilterMode::High;
+                    app.update_visible_findings();
+                }
+                KeyCode::Char('3') => {
+                    app.filter_mode = FilterMode::Medium;
+                    app.update_visible_findings();
+                }
+                KeyCode::Char('4') => {
+                    app.filter_mode = FilterMode::Low;
+                    app.update_visible_findings();
+                }
                 KeyCode::Char('c') => {
                     if let Some(sel) = app.state.selected() {
                         if let Some(f) = app.findings.get(sel) {
@@ -405,13 +446,20 @@ fn run_app<B: ratatui::backend::Backend>(
                             };
                             match fixer::fix_file(&f.file_path, vec![replacement]) {
                                 Ok(_) => {
-                                    app.findings.remove(sel);
-                                    app.clipboard_status = Some("Fixed!".to_string());
-                                    if app.findings.is_empty() {
-                                        return Ok(());
+                                    let fingerprint = f.fingerprint.clone();
+                                    // Remove from all_findings
+                                    if let Some(idx) = app
+                                        .all_findings
+                                        .iter()
+                                        .position(|x| x.fingerprint == fingerprint)
+                                    {
+                                        app.all_findings.remove(idx);
                                     }
-                                    if sel >= app.findings.len() {
-                                        app.state.select(Some(app.findings.len() - 1));
+                                    app.update_visible_findings();
+                                    app.clipboard_status = Some("Fixed!".to_string());
+
+                                    if app.all_findings.is_empty() {
+                                        return Ok(());
                                     }
                                 }
                                 Err(e) => {
@@ -433,14 +481,19 @@ fn run_app<B: ratatui::backend::Backend>(
                             );
                             let _ = baseline.save();
 
-                            // Remove from UI list
-                            app.findings.remove(sel);
-                            if app.findings.is_empty() {
-                                return Ok(()); // All handled
+                            let fingerprint = f.fingerprint.clone();
+                            // Remove from all_findings
+                            if let Some(idx) = app
+                                .all_findings
+                                .iter()
+                                .position(|x| x.fingerprint == fingerprint)
+                            {
+                                app.all_findings.remove(idx);
                             }
-                            // Adjust selection
-                            if sel >= app.findings.len() {
-                                app.state.select(Some(app.findings.len() - 1));
+                            app.update_visible_findings();
+
+                            if app.all_findings.is_empty() {
+                                return Ok(()); // All handled
                             }
                         }
                     }

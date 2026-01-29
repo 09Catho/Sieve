@@ -7,14 +7,28 @@ use ratatui::{
     widgets::{Block, Borders, Clear, List, ListItem, ListState, Paragraph, Wrap},
     Frame,
 };
+use std::fs::File;
+use std::io::{self, BufRead, BufReader};
+
+#[derive(Debug, PartialEq, Clone, Copy)]
+pub enum FilterMode {
+    All,
+    High,
+    Medium,
+    Low,
+}
 
 pub struct App {
+    pub all_findings: Vec<Finding>,
     pub findings: Vec<Finding>,
     pub state: ListState,
     pub strict_mode: bool,
     pub show_help: bool,
     pub _show_quit_confirm: bool,
     pub clipboard_status: Option<String>,
+    pub filter_mode: FilterMode,
+    pub show_context: bool,
+    pub context_lines: Option<Vec<(usize, String)>>,
 }
 
 impl App {
@@ -24,12 +38,16 @@ impl App {
             state.select(Some(0));
         }
         App {
+            all_findings: findings.clone(),
             findings,
             state,
             strict_mode: strict,
             show_help: false,
             _show_quit_confirm: false,
             clipboard_status: None,
+            filter_mode: FilterMode::All,
+            show_context: false,
+            context_lines: None,
         }
     }
 
@@ -66,6 +84,50 @@ impl App {
         };
         self.state.select(Some(i));
     }
+
+    pub fn update_visible_findings(&mut self) {
+        self.findings = self
+            .all_findings
+            .iter()
+            .filter(|f| match self.filter_mode {
+                FilterMode::All => true,
+                FilterMode::High => f.severity == Severity::High,
+                FilterMode::Medium => f.severity == Severity::Medium,
+                FilterMode::Low => f.severity == Severity::Low,
+            })
+            .cloned()
+            .collect();
+
+        // Reset selection if out of bounds
+        if self.findings.is_empty() {
+            self.state.select(None);
+        } else {
+            self.state.select(Some(0));
+        }
+    }
+}
+
+pub fn get_file_context(path: &str, line_num: usize) -> io::Result<Vec<(usize, String)>> {
+    let file = File::open(path)?;
+    let reader = BufReader::new(file);
+
+    // Context window: +/- 2 lines
+    let start = line_num.saturating_sub(2);
+    let end = line_num + 2;
+
+    let mut lines = Vec::new();
+    for (i, line) in reader.lines().enumerate() {
+        let current_line = i + 1;
+        if current_line >= start && current_line <= end {
+            if let Ok(l) = line {
+                lines.push((current_line, l));
+            }
+        }
+        if current_line > end {
+            break;
+        }
+    }
+    Ok(lines)
 }
 
 pub fn ui(f: &mut Frame, app: &mut App) {
@@ -221,13 +283,24 @@ pub fn ui(f: &mut Frame, app: &mut App) {
 
     // --- BOTTOM BAR ---
     let mode_str = if app.strict_mode { "STRICT" } else { "NORMAL" };
+    let filter_str = match app.filter_mode {
+        FilterMode::All => "ALL",
+        FilterMode::High => "HIGH",
+        FilterMode::Medium => "MED",
+        FilterMode::Low => "LOW",
+    };
     let help_text =
-        "q:Quit | g:Baseline (Ignore) | c:Copy | r:Repair | s:Switch Mode | ?:Help | \u{2191}\u{2193}:Nav";
+        "q:Quit | 1-4:Filter | g:Ignore | c:Copy | r:Repair | s:Mode | Enter:Ctx | ?:Help";
 
     let status_bar = Paragraph::new(Line::from(vec![
         Span::styled(
             format!(" MODE: {} ", mode_str),
             Style::default().bg(Color::Blue).fg(Color::White),
+        ),
+        Span::raw(" "),
+        Span::styled(
+            format!(" FILTER: {} ", filter_str),
+            Style::default().bg(Color::Magenta).fg(Color::White),
         ),
         Span::raw(" "),
         Span::raw(help_text),
@@ -280,6 +353,46 @@ pub fn ui(f: &mut Frame, app: &mut App) {
             .block(help_block)
             .wrap(Wrap { trim: true });
         f.render_widget(p, area);
+    }
+
+    if app.show_context {
+        if let Some(lines) = &app.context_lines {
+            let area = centered_rect(80, 60, f.size());
+            f.render_widget(Clear, area);
+
+            let context_block = Block::default()
+                .title(" Context View - Esc/Enter to Close ")
+                .borders(Borders::ALL)
+                .style(Style::default().bg(Color::Black));
+
+            let mut content = Vec::new();
+            for (num, line) in lines {
+                let style = if let Some(idx) = app.state.selected() {
+                    if let Some(finding) = app.findings.get(idx) {
+                        if *num == finding.line_number {
+                            Style::default().fg(Color::Red).add_modifier(Modifier::BOLD)
+                        } else {
+                            Style::default().fg(Color::Gray)
+                        }
+                    } else {
+                        Style::default().fg(Color::Gray)
+                    }
+                } else {
+                    Style::default().fg(Color::Gray)
+                };
+
+                content.push(Line::from(vec![
+                    Span::styled(format!("{: >4} | ", num), style),
+                    Span::styled(line.replace('\t', "    "), style),
+                ]));
+            }
+
+            let p = Paragraph::new(content)
+                .block(context_block)
+                .wrap(Wrap { trim: false }); // preserve indentation
+
+            f.render_widget(p, area);
+        }
     }
 }
 
